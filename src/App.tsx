@@ -25,6 +25,8 @@ export default function App() {
   // AI Thumbnails state
   const [thumbnailSuggestions, setThumbnailSuggestions] = useState<ThumbnailSuggestion[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [suggestionSource, setSuggestionSource] = useState<'gemini' | 'smart-generator'>('smart-generator');
+  const [suggestionError, setSuggestionError] = useState<string | undefined>(undefined);
 
   // Sticker Canvas Overlays
   const [overlays, setOverlays] = useState<OverlayItem[]>([
@@ -103,13 +105,19 @@ export default function App() {
   // Trigger Gemini AI thumbnail generation
   const triggerAiThumbnails = async (targetKeyframes: Keyframe[], title?: string) => {
     setIsLoadingSuggestions(true);
+    setSuggestionError(undefined);
     const vTitle = title || currentVideo?.title || '내 동영상';
 
     try {
-      const suggestions = await generateThumbnailSuggestions(targetKeyframes, vTitle);
-      setThumbnailSuggestions(suggestions);
-    } catch (err) {
+      const res = await generateThumbnailSuggestions(targetKeyframes, vTitle);
+      setThumbnailSuggestions(res.suggestions);
+      setSuggestionSource(res.source);
+      if (res.error) {
+        setSuggestionError(res.error);
+      }
+    } catch (err: any) {
       console.error('Failed to generate thumbnail suggestions:', err);
+      setSuggestionError(err?.message || '썸네일 생성 중 오류가 발생했습니다.');
     } finally {
       setIsLoadingSuggestions(false);
     }
@@ -295,6 +303,8 @@ export default function App() {
               onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
               hasApiKey={hasApiKey}
               keyframes={keyframes}
+              source={suggestionSource}
+              errorMessage={suggestionError}
             />
           </div>
         )}

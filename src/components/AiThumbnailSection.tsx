@@ -11,6 +11,8 @@ interface AiThumbnailSectionProps {
   onOpenApiKeyModal: () => void;
   hasApiKey: boolean;
   keyframes: Keyframe[];
+  source?: 'gemini' | 'smart-generator';
+  errorMessage?: string;
 }
 
 export const AiThumbnailSection: React.FC<AiThumbnailSectionProps> = ({
@@ -21,6 +23,8 @@ export const AiThumbnailSection: React.FC<AiThumbnailSectionProps> = ({
   onOpenApiKeyModal,
   hasApiKey,
   keyframes,
+  source = 'smart-generator',
+  errorMessage,
 }) => {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -152,9 +156,20 @@ export const AiThumbnailSection: React.FC<AiThumbnailSectionProps> = ({
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-black uppercase tracking-wider">
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-              <span>Gemini AI 멀티모달 분석</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-black uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                <span>{source === 'gemini' ? '✨ Gemini AI 실시간 분석 완료' : '💡 스마트 아이디어 모드'}</span>
+              </div>
+              {hasApiKey && (
+                <button
+                  onClick={onOpenApiKeyModal}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/20 hover:bg-black/30 text-[11px] font-bold text-white transition-colors"
+                >
+                  <Key className="w-3 h-3 text-amber-300" />
+                  API 키 등록됨 (설정)
+                </button>
+              )}
             </div>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
               어린이 시청자 사로잡는 AI 썸네일 추천 3선 🌟
@@ -186,6 +201,20 @@ export const AiThumbnailSection: React.FC<AiThumbnailSectionProps> = ({
             )}
           </div>
         </div>
+
+        {/* Status / Error feedback */}
+        {errorMessage && (
+          <div className="mt-4 p-3 bg-black/30 border border-white/30 rounded-2xl text-xs text-rose-100 flex items-start gap-2">
+            <Info className="w-4 h-4 shrink-0 text-amber-300 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold text-amber-200">Gemini API 안내: </span>
+              <span>{errorMessage}</span>
+              <span className="block text-[11px] text-white/80">
+                (API 키를 모달에서 다시 [연결 테스트] 해보시거나, 기본 스마트 아이디어가 제공됩니다.)
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* AI Prompt note */}
         <div className="mt-4 pt-4 border-t border-white/20 flex items-center gap-2 text-xs text-white/90">
