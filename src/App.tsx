@@ -202,10 +202,10 @@ export default function App() {
             <span className="text-2xl sm:text-3xl">🚀</span>
             <div>
               <h2 className="font-extrabold text-neutral-900 text-sm sm:text-base">
-                키즈 유튜브 썸네일 제작 마법 3단계!
+                하온이와 리호의 유튜브 영상 & 썸네일 제작 마법 3단계!
               </h2>
               <p className="text-xs text-neutral-600 font-medium">
-                영상 업로드 ➔ AI 썸네일 추천 ➔ 스티커로 꾸미고 다운로드!
+                영상 올리기 ➔ AI 대박 썸네일 추천 ➔ 자동 자막과 스티커로 꾸미기!
               </p>
             </div>
           </div>
@@ -241,7 +241,7 @@ export default function App() {
                   : 'bg-white/80 text-neutral-600 hover:bg-white'
               }`}
             >
-              3. 스티커 스튜디오
+              3. 자동 자막 & 스티커
             </button>
           </div>
         </div>

@@ -14,11 +14,15 @@ import {
   RotateCw,
   Volume2,
   VolumeX,
+  Wand2,
+  Mic,
+  Clock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { OverlayItem, VideoItem } from '../types';
 import { STICKER_PRESETS, SUBTITLE_COLOR_PRESETS } from '../data/stickers';
 import { formatTime } from '../utils/formatTime';
+import { generateTimedSmartSubtitles, cuesToOverlayItems } from '../utils/autoSubtitle';
 
 interface StickerCanvasProps {
   currentVideo: VideoItem | null;
@@ -47,6 +51,8 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
   const [newSubtitleText, setNewSubtitleText] = useState('대박 사건! 🔥');
   const [selectedColorPreset, setSelectedColorPreset] = useState(SUBTITLE_COLOR_PRESETS[0]);
   const [activeTab, setActiveTab] = useState<'stickers' | 'subtitles'>('stickers');
+  const [isGeneratingAutoSubs, setIsGeneratingAutoSubs] = useState(false);
+  const [autoSubFeedback, setAutoSubFeedback] = useState<string | null>(null);
 
   // Dragging state
   const isDraggingRef = useRef(false);
@@ -136,6 +142,38 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
     };
     setOverlays((prev) => [...prev, newOverlay]);
     setSelectedOverlayId(newOverlay.id);
+  };
+
+  // Auto-generate smart timed subtitles from video audio/duration
+  const handleAutoGenerateSubtitles = () => {
+    setIsGeneratingAutoSubs(true);
+    setAutoSubFeedback(null);
+
+    try {
+      const vidDuration = duration || videoRef.current?.duration || 15;
+      const vTitle = currentVideo?.title || '내 동영상';
+      const cues = generateTimedSmartSubtitles(vidDuration, vTitle);
+      const generatedItems = cuesToOverlayItems(cues);
+
+      // Keep stickers, replace previous subtitles with new auto-generated ones
+      setOverlays((prev) => {
+        const stickersOnly = prev.filter((item) => item.type !== 'subtitle');
+        return [...stickersOnly, ...generatedItems];
+      });
+
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.7 },
+      });
+
+      setAutoSubFeedback(`총 ${generatedItems.length}개의 음성 맞춤 자막이 영상 타임라인에 자동 배치되었습니다! ✨`);
+      setTimeout(() => setAutoSubFeedback(null), 5000);
+    } catch (err) {
+      console.error('Failed to auto generate subtitles:', err);
+    } finally {
+      setIsGeneratingAutoSubs(false);
+    }
   };
 
   // Drag handlers (Mouse + Touch support)
@@ -435,7 +473,18 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
           )}
 
           {/* Interactive Draggable Overlays */}
-          {overlays.map((item) => {
+          {overlays
+            .filter((item) => {
+              // Stickers are always visible; timed subtitles appear when video currentTime is within range
+              if (item.type === 'subtitle' && item.startTime !== undefined && item.endTime !== undefined) {
+                // If currently playing or paused at a specific second, show active cue
+                // If user is editing/selected, always show so they can position it
+                if (selectedOverlayId === item.id) return true;
+                return currentTime >= item.startTime && currentTime <= item.endTime;
+              }
+              return true;
+            })
+            .map((item) => {
             const isSelected = selectedOverlayId === item.id;
             return (
               <div
@@ -660,29 +709,67 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
           </div>
         )}
 
-        {/* Tab 2: Subtitle Creator */}
+        {/* Tab 2: Subtitle Creator & AI Auto-Subtitles */}
         {activeTab === 'subtitles' && (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              <input
-                id="subtitle-input"
-                type="text"
-                value={newSubtitleText}
-                onChange={(e) => setNewSubtitleText(e.target.value)}
-                placeholder="넣고 싶은 자막을 적어보세요! (예: 구독과 좋아요 꾹!)"
-                className="flex-1 px-4 py-3 rounded-2xl border-2 border-neutral-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none text-sm font-bold transition-all"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddSubtitle();
-                }}
-              />
+          <div className="space-y-5">
+            {/* AI Auto-Subtitle Generator Banner */}
+            <div className="p-4 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-purple-500/10 border-2 border-rose-200 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-1.5 font-black text-rose-600 text-sm">
+                  <Wand2 className="w-4 h-4 text-amber-500" />
+                  <span>AI 영상 음성·타임라인 자동 자막 생성기</span>
+                  <span className="px-2 py-0.5 bg-rose-500 text-white rounded-full text-[10px] font-extrabold uppercase">
+                    원클릭
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-600 font-medium">
+                  영상의 주요 타이밍에 맞춰 초등학생 유튜브에 딱 어울리는 말풍선 자막을 영상 타임라인에 자동으로 배치해줘요!
+                </p>
+              </div>
+
               <button
-                id="add-subtitle-btn"
-                onClick={handleAddSubtitle}
-                className="px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-2xl shadow-sm hover:shadow-md active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                id="auto-generate-subtitles-btn"
+                onClick={handleAutoGenerateSubtitles}
+                disabled={isGeneratingAutoSubs}
+                className="px-5 py-3 bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-black rounded-2xl shadow-md active:scale-95 transition-all text-xs sm:text-sm flex items-center gap-2 whitespace-nowrap disabled:opacity-50"
               >
-                <Plus className="w-4 h-4" />
-                <span>자막 화면에 올리기</span>
+                <Sparkles className={`w-4 h-4 text-yellow-300 ${isGeneratingAutoSubs ? 'animate-spin' : ''}`} />
+                <span>{isGeneratingAutoSubs ? '자막 생성 중...' : '🎙️ AI 자동 자막 생성하기'}</span>
               </button>
+            </div>
+
+            {/* Success message banner */}
+            {autoSubFeedback && (
+              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-800 font-bold flex items-center gap-2 animate-in fade-in">
+                <span>🎉</span>
+                <span>{autoSubFeedback}</span>
+              </div>
+            )}
+
+            {/* Manual custom subtitle input */}
+            <div className="pt-2 border-t border-neutral-100">
+              <span className="block text-xs font-bold text-neutral-600 mb-2">내가 직접 입력하기:</span>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <input
+                  id="subtitle-input"
+                  type="text"
+                  value={newSubtitleText}
+                  onChange={(e) => setNewSubtitleText(e.target.value)}
+                  placeholder="넣고 싶은 자막을 적어보세요! (예: 구독과 좋아요 꾹!)"
+                  className="flex-1 px-4 py-3 rounded-2xl border-2 border-neutral-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none text-sm font-bold transition-all"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddSubtitle();
+                  }}
+                />
+                <button
+                  id="add-subtitle-btn"
+                  onClick={handleAddSubtitle}
+                  className="px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-2xl shadow-sm hover:shadow-md active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>자막 화면에 올리기</span>
+                </button>
+              </div>
             </div>
 
             {/* Color style choices */}
@@ -711,6 +798,72 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
                 })}
               </div>
             </div>
+
+            {/* List of currently placed subtitles */}
+            {overlays.filter((o) => o.type === 'subtitle').length > 0 && (
+              <div className="pt-3 border-t border-neutral-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-neutral-600">
+                    현재 적용된 자막 ({overlays.filter((o) => o.type === 'subtitle').length}개):
+                  </span>
+                  <button
+                    onClick={() => {
+                      setOverlays((prev) => prev.filter((o) => o.type !== 'subtitle'));
+                    }}
+                    className="text-[11px] text-rose-500 hover:underline font-semibold"
+                  >
+                    모든 자막 지우기
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
+                  {overlays
+                    .filter((o) => o.type === 'subtitle')
+                    .map((sub, sIdx) => {
+                      const isCurrent =
+                        sub.startTime !== undefined &&
+                        sub.endTime !== undefined &&
+                        currentTime >= sub.startTime &&
+                        currentTime <= sub.endTime;
+
+                      return (
+                        <div
+                          key={sub.id}
+                          onClick={() => {
+                            setSelectedOverlayId(sub.id);
+                            if (sub.startTime !== undefined && videoRef.current) {
+                              videoRef.current.currentTime = sub.startTime;
+                              setCurrentTime(sub.startTime);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-2 border ${
+                            isCurrent
+                              ? 'bg-rose-500 text-white border-rose-600 shadow-xs scale-105'
+                              : selectedOverlayId === sub.id
+                              ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-300'
+                              : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border-neutral-200'
+                          }`}
+                        >
+                          {sub.startTime !== undefined && (
+                            <span className="text-[10px] opacity-75">
+                              {formatTime(sub.startTime)}~{formatTime(sub.endTime || sub.startTime + 2)}
+                            </span>
+                          )}
+                          <span className="truncate max-w-[140px]">{sub.text}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOverlays((prev) => prev.filter((o) => o.id !== sub.id));
+                            }}
+                            className="text-neutral-400 hover:text-rose-600 ml-1 text-xs"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

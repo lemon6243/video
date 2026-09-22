@@ -51,6 +51,8 @@ export interface OverlayItem {
   strokeColor?: string;
   scale: number;
   rotation: number;
+  startTime?: number; // seconds
+  endTime?: number;   // seconds
 }
 
 export interface StickerPreset {

@@ -1,6 +1,11 @@
 import { StickerPreset } from '../types';
 
 export const STICKER_PRESETS: StickerPreset[] = [
+  // Haon & Riho Special Badges
+  { id: 'haon-riho', emoji: '🌟', label: '하온 & 리호 TV', category: 'youtube', color: 'bg-gradient-to-r from-amber-400 to-rose-400 text-neutral-900' },
+  { id: 'haon-star', emoji: '👦', label: '하온이의 도전!', category: 'youtube', color: 'bg-sky-500 text-white' },
+  { id: 'riho-star', emoji: '👧', label: '리호의 꿀잼타임!', category: 'youtube', color: 'bg-pink-500 text-white' },
+
   // YouTube Creator Badges
   { id: 'yt-sub', emoji: '🔔', label: '구독&좋아요', category: 'youtube', color: 'bg-red-500 text-white' },
   { id: 'yt-fire', emoji: '🔥', label: '인기급상승', category: 'youtube', color: 'bg-amber-500 text-white' },

@@ -28,14 +28,14 @@ export const Header: React.FC<HeaderProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg sm:text-xl font-black tracking-tight text-neutral-900">
-                  키즈 튜브 스튜디오
+                  하온이와 리호의 전용 스튜디오
                 </h1>
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                  어린이용 🌟
+                  하온 & 리호 🌟
                 </span>
               </div>
               <p className="text-xs text-neutral-500 hidden sm:block font-medium">
-                영상 분석 · 자동 키프레임 · AI 썸네일 추천 · 스티커 꾸미기
+                영상 분석 · 자동 키프레임 · AI 썸네일 추천 · 자동 자막 & 스티커
               </p>
             </div>
           </div>

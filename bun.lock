@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "video",
+      "name": "haon-riho-studio",
       "dependencies": {
         "@google/genai": "^2.23.0",
         "canvas-confetti": "^1.9.4",
