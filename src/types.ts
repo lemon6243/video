@@ -68,3 +68,29 @@ export interface GeminiSettings {
   hasKey: boolean;
   model: string;
 }
+
+export type VideoFilterId = 'normal' | 'vivid' | 'sunshine' | 'comic' | 'cinematic' | 'glow' | 'bw';
+
+export interface VideoFilterOption {
+  id: VideoFilterId;
+  name: string;
+  emoji: string;
+  cssFilter: string;
+  description: string;
+}
+
+export type AspectRatioMode = '16:9' | '9:16';
+
+export interface YouTubeUploadKit {
+  titles: string[];
+  description: string;
+  tags: string[];
+  hashtags: string[];
+  targetAudience: string;
+  kidFriendlyChecklist: {
+    title: string;
+    checked: boolean;
+    description: string;
+  }[];
+}
+

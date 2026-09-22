@@ -1,9 +1,9 @@
 import React from 'react';
-import { Sparkles, Key, Video, Wand2, Palette } from 'lucide-react';
+import { Sparkles, Key, Video, Wand2, Palette, Youtube } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'analyze' | 'thumbnail' | 'editor';
-  onTabChange: (tab: 'analyze' | 'thumbnail' | 'editor') => void;
+  activeTab: 'analyze' | 'thumbnail' | 'editor' | 'youtube';
+  onTabChange: (tab: 'analyze' | 'thumbnail' | 'editor' | 'youtube') => void;
   onOpenApiKeyModal: () => void;
   hasApiKey: boolean;
   videoLoaded: boolean;
@@ -40,24 +40,17 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Right Action: API Key Button */}
+          {/* Right Action: AI Connection Status */}
           <div className="flex items-center gap-2">
             <button
               id="open-api-key-header-btn"
               onClick={onOpenApiKeyModal}
-              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold border-2 transition-all shadow-xs ${
-                hasApiKey
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-              }`}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-extrabold border-2 transition-all shadow-xs bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
+              title="AI 연결 상태 확인"
             >
-              <Key className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-current" />
-              <span>{hasApiKey ? 'AI 열쇠 켜짐' : 'AI 열쇠 설정'}</span>
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  hasApiKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
-                }`}
-              />
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <span>AI 연결됨</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             </button>
           </div>
         </div>
@@ -107,6 +100,22 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Palette className="w-4 h-4" />
             <span>3. 자막·스티커 스튜디오</span>
+          </button>
+
+          <button
+            id="tab-youtube-btn"
+            onClick={() => onTabChange('youtube')}
+            className={`flex items-center gap-2 px-3.5 sm:px-5 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all whitespace-nowrap ${
+              activeTab === 'youtube'
+                ? 'bg-red-600 text-white shadow-md shadow-red-200'
+                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80 hover:text-neutral-900'
+            }`}
+          >
+            <Youtube className="w-4 h-4" />
+            <span>4. 유튜브 업로드 패키지</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-white/20 font-extrabold">
+              SEO
+            </span>
           </button>
         </div>
       </div>

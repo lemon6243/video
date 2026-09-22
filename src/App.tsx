@@ -4,15 +4,17 @@ import { VideoUploadArea } from './components/VideoUploadArea';
 import { KeyframeGrid } from './components/KeyframeGrid';
 import { AiThumbnailSection } from './components/AiThumbnailSection';
 import { StickerCanvas } from './components/StickerCanvas';
+import { YouTubeKitSection } from './components/YouTubeKitSection';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { SAMPLE_KID_VIDEOS } from './data/stickers';
 import { VideoItem, Keyframe, ThumbnailSuggestion, OverlayItem } from './types';
 import { extractVideoKeyframes } from './utils/videoExtractor';
-import { generateThumbnailSuggestions, getStoredApiKey } from './utils/gemini';
-import { Sparkles, Wand2, Palette, Video, ArrowRight } from 'lucide-react';
+import { generateThumbnailSuggestions, checkAiServerStatus } from './utils/gemini';
+import { generateYouTubeUploadKit } from './utils/youtubeKit';
+import { Sparkles, Wand2, Palette, Video, ArrowRight, Youtube } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'analyze' | 'thumbnail' | 'editor'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'thumbnail' | 'editor' | 'youtube'>('analyze');
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
 
@@ -57,10 +59,11 @@ export default function App() {
 
   const [editorBackgroundUrl, setEditorBackgroundUrl] = useState<string | undefined>(undefined);
 
-  // Check stored API key on mount
+  // Check AI connection status on mount
   useEffect(() => {
-    const key = getStoredApiKey();
-    setHasApiKey(Boolean(key));
+    checkAiServerStatus().then((status) => {
+      setHasApiKey(status.connected);
+    });
 
     // Load initial sample video automatically so the app is instantly working and delightful!
     const defaultSample = SAMPLE_KID_VIDEOS[0];
@@ -76,7 +79,9 @@ export default function App() {
   }, []);
 
   const handleKeyUpdated = () => {
-    setHasApiKey(Boolean(getStoredApiKey()));
+    checkAiServerStatus().then((status) => {
+      setHasApiKey(status.connected);
+    });
   };
 
   // Video selection & automatic keyframe extraction
@@ -320,19 +325,33 @@ export default function App() {
             />
           </div>
         )}
+
+        {/* Tab 4: YouTube Upload Kit (SEO, Titles, Description, Checklist) */}
+        {activeTab === 'youtube' && (
+          <div className="animate-in fade-in duration-300">
+            <YouTubeKitSection
+              kit={generateYouTubeUploadKit(currentVideo?.title || '하온이와 리호의 신나는 하루')}
+              videoTitle={currentVideo?.title || '하온이와 리호의 신나는 하루'}
+            />
+          </div>
+        )}
       </main>
 
       {/* Footer */}
       <footer className="mt-12 border-t-2 border-amber-100 bg-white/70 py-6 text-center text-xs text-neutral-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-neutral-800">키즈 튜브 스튜디오</span>
+            <span className="font-extrabold text-neutral-800">하온이와 리호의 전용 스튜디오</span>
             <span>·</span>
             <span>어린이 유튜브 크리에이터를 위한 동영상 편집 놀이터 🎈</span>
           </div>
           <div className="flex items-center gap-4 text-neutral-600 font-medium">
             <button onClick={() => setIsApiKeyModalOpen(true)} className="hover:text-amber-600">
               Gemini API 키 관리
+            </button>
+            <span>·</span>
+            <button onClick={() => setActiveTab('youtube')} className="hover:text-red-600 font-bold">
+              유튜브 업로드 패키지
             </button>
             <span>·</span>
             <button onClick={() => setActiveTab('analyze')} className="hover:text-amber-600">

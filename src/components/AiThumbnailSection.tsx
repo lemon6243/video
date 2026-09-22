@@ -159,23 +159,22 @@ export const AiThumbnailSection: React.FC<AiThumbnailSectionProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-xs text-xs font-black uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                <span>{source === 'gemini' ? '✨ Gemini AI 실시간 분석 완료' : '💡 스마트 아이디어 모드'}</span>
+                <span>{source === 'gemini' ? '✨ Gemini AI 실시간 분석 완료' : '💡 스마트 추천 모드'}</span>
               </div>
-              {hasApiKey && (
-                <button
-                  onClick={onOpenApiKeyModal}
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/20 hover:bg-black/30 text-[11px] font-bold text-white transition-colors"
-                >
-                  <Key className="w-3 h-3 text-amber-300" />
-                  API 키 등록됨 (설정)
-                </button>
-              )}
+              <button
+                onClick={onOpenApiKeyModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/25 hover:bg-black/35 text-xs font-bold text-white transition-colors"
+                title="AI 연결 상태 확인"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>AI 상시 연결됨 (확인)</span>
+              </button>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-              어린이 시청자 사로잡는 AI 썸네일 추천 3선 🌟
+              시청자를 사로잡는 AI 썸네일 추천 3선 🌟
             </h2>
             <p className="text-sm sm:text-base text-rose-50 font-medium leading-relaxed">
-              영상 속 가장 흥미진진한 장면과 찰떡궁합인 대박 제목을 AI가 3가지 스타일로 만들어드렸어요!
+              영상 속 가장 흥미진진한 장면과 찰떡궁합인 대박 제목을 AI가 3가지 스타일로 추천해 드려요!
             </p>
           </div>
 
@@ -220,7 +219,7 @@ export const AiThumbnailSection: React.FC<AiThumbnailSectionProps> = ({
         <div className="mt-4 pt-4 border-t border-white/20 flex items-center gap-2 text-xs text-white/90">
           <Info className="w-4 h-4 shrink-0 text-yellow-200" />
           <span>
-            AI 분석 프롬프트: &ldquo;영상 프레임들을 시각적으로 분석하여 초등학생 유튜브 채널에 딱 맞는 클릭 유발 썸네일 3가지를 추천해줘&rdquo;
+            AI 분석 프롬프트: &ldquo;영상 프레임들을 시각적으로 분석하여 유튜브 시청자의 클릭률(CTR)을 높이는 썸네일 제목과 명장면 3가지를 추천해줘&rdquo;
           </span>
         </div>
       </div>

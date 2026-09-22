@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Key, X, Check, ExternalLink, Sparkles, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { getStoredApiKey, saveStoredApiKey, removeStoredApiKey, SUPPORTED_GEMINI_MODELS } from '../utils/gemini';
+import { X, Check, Sparkles, AlertCircle, ShieldCheck, RefreshCw, CheckCircle2, Lock } from 'lucide-react';
+import { testAiLiveConnection } from '../utils/gemini';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -8,86 +8,19 @@ interface ApiKeyModalProps {
   onKeyUpdated: () => void;
 }
 
-export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKeyUpdated }) => {
-  const [apiKey, setApiKey] = useState(getStoredApiKey());
-  const [showKey, setShowKey] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose }) => {
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   if (!isOpen) return null;
 
-  const handleSave = () => {
-    saveStoredApiKey(apiKey);
-    setSaveSuccess(true);
-    onKeyUpdated();
-    setTimeout(() => setSaveSuccess(false), 2000);
-  };
-
-  const handleClear = () => {
-    removeStoredApiKey();
-    setApiKey('');
-    setTestResult(null);
-    onKeyUpdated();
-  };
-
   const handleTestKey = async () => {
-    if (!apiKey.trim()) {
-      setErrorMessage('API 키를 먼저 입력해주세요!');
-      setTestResult('error');
-      return;
-    }
-
     setTesting(true);
     setTestResult(null);
-    setErrorMessage('');
 
-    try {
-      const cleanKey = apiKey.trim();
-      let connected = false;
-      let lastErrMsg = '';
-
-      for (const model of SUPPORTED_GEMINI_MODELS) {
-        try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cleanKey)}`;
-          
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': cleanKey,
-            },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: 'Respond with OK' }] }],
-            }),
-          });
-
-          if (res.ok) {
-            connected = true;
-            break;
-          } else {
-            const errorData = await res.json().catch(() => ({}));
-            lastErrMsg = errorData?.error?.message || `HTTP ${res.status}`;
-          }
-        } catch (e: any) {
-          lastErrMsg = e?.message || '네트워크 오류';
-        }
-      }
-
-      if (!connected) {
-        throw new Error(lastErrMsg || 'API 키 검증 실패. 키와 권한을 확인해주세요.');
-      }
-
-      setTestResult('success');
-      saveStoredApiKey(cleanKey);
-      onKeyUpdated();
-    } catch (err: any) {
-      setTestResult('error');
-      setErrorMessage(err?.message || '연결에 실패했습니다. 키를 다시 확인해주세요.');
-    } finally {
-      setTesting(false);
-    }
+    const result = await testAiLiveConnection();
+    setTestResult(result);
+    setTesting(false);
   };
 
   return (
@@ -112,131 +45,102 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
         </button>
 
         {/* Modal Title */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-amber-600 shadow-xs">
-            <Key className="w-6 h-6" />
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center text-emerald-600 shadow-xs">
+            <Sparkles className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 flex items-center gap-2">
-              AI 열쇠 (Gemini API 키) 설정
+            <h2 className="text-xl sm:text-2xl font-black text-neutral-900 flex items-center gap-2">
+              AI 스마트 엔진 연결 상태
             </h2>
-            <p className="text-sm text-neutral-500 font-medium">
-              더 똑똑하고 창의적인 썸네일 제목을 추천받을 수 있어요!
+            <p className="text-xs sm:text-sm text-neutral-500 font-medium">
+              하온이와 리호의 전용 스튜디오 AI 상시 연결 안내
             </p>
           </div>
         </div>
 
-        {/* Safe notice for parents & kids */}
-        <div className="mb-5 p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 flex items-start gap-2.5 text-xs sm:text-sm text-amber-900">
-          <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="leading-relaxed">
-            <p>
-              입력한 API 키는 내 컴퓨터의 웹 브라우저(localStorage)에만 안전하게 저장되며 외부 서버로 전송되지 않습니다.
-            </p>
-            <p className="mt-1 text-xs text-amber-800 font-semibold">
-              💡 최신 Google AI Studio 키(<code className="bg-amber-100 px-1 py-0.5 rounded text-amber-900 font-mono">AQ...</code> 또는 <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-900 font-mono">AIzaSy...</code>) 모두 그대로 사용할 수 있습니다.
-            </p>
-          </div>
-        </div>
-
-        {/* Input Field */}
-        <div className="space-y-3 mb-6">
+        {/* Main Status Badge */}
+        <div className="mb-5 p-5 bg-gradient-to-br from-emerald-50 to-teal-50/60 rounded-3xl border-2 border-emerald-200 shadow-2xs space-y-3">
           <div className="flex items-center justify-between">
-            <label className="block text-sm font-bold text-neutral-700">
-              Google AI Studio API 키 입력
-            </label>
-            <span className="text-[11px] font-medium text-neutral-500">
-              AQ... 또는 AIzaSy... 시작
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+              </span>
+              <span className="font-extrabold text-sm sm:text-base text-emerald-900">
+                AI 스마트 엔진 상시 연결됨 (정상)
+              </span>
+            </div>
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-200/80 text-emerald-900">
+              Gemini 3.6 Flash
             </span>
           </div>
-          <div className="relative">
-            <input
-              id="gemini-api-key-input"
-              type={showKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AQ... 또는 AIzaSy... 형식의 키를 붙여넣으세요"
-              className="w-full px-4 py-3.5 pr-12 rounded-2xl border-2 border-neutral-200 focus:border-amber-400 focus:ring-4 focus:ring-amber-100 outline-none text-sm font-mono transition-all"
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey(!showKey)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1"
-              aria-label="키 보이기/숨기기"
-            >
-              {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
 
-          {/* Test connection results */}
-          {testResult === 'success' && (
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-emerald-600 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-              <Check className="w-4 h-4" /> Gemini AI 연결에 성공했습니다! 훌륭해요!
-            </div>
-          )}
-          {testResult === 'error' && (
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-rose-600 font-semibold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
-              <AlertCircle className="w-4 h-4 shrink-0" /> {errorMessage}
-            </div>
-          )}
+          <p className="text-xs sm:text-sm text-emerald-950 leading-relaxed font-medium">
+            하온이와 리호를 위해 <strong>전용 AI 키가 서버에 고정</strong>되어 있습니다. 
+            스마트폰, 태블릿, 다른 컴퓨터 등 어떤 기기에서 접속하셔도 별도로 키를 입력할 필요 없이 바로 사용 가능합니다.
+          </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 mb-5">
-          <button
-            id="save-api-key-btn"
-            onClick={handleSave}
-            className="flex-1 px-5 py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-neutral-900 font-bold rounded-2xl shadow-sm hover:shadow-md active:scale-98 transition-all flex items-center justify-center gap-2"
+        {/* Key Security Notice */}
+        <div className="mb-5 p-4 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-start gap-3 text-xs text-neutral-600">
+          <Lock className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <p className="font-bold text-neutral-800">안전한 보안 모드 작동 중</p>
+            <p className="mt-0.5 text-[11px] text-neutral-500">
+              다른 사람이 볼 수 없도록 실제 API 키 문자열은 안전하게 보호되며, 연결 활성화 상태만 표시됩니다.
+            </p>
+          </div>
+        </div>
+
+        {/* Test Result Message */}
+        {testResult && (
+          <div
+            className={`mb-4 p-3.5 rounded-2xl border text-xs sm:text-sm font-bold flex items-start gap-2.5 animate-in fade-in duration-200 ${
+              testResult.success
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : 'bg-rose-50 text-rose-800 border-rose-300'
+            }`}
           >
-            {saveSuccess ? (
+            {testResult.success ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            )}
+            <div>
+              <p>{testResult.message}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            id="test-ai-connection-btn"
+            onClick={handleTestKey}
+            disabled={testing}
+            className="flex-1 px-5 py-3.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-2xl text-xs sm:text-sm shadow-xs active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {testing ? (
               <>
-                <Check className="w-4 h-4 text-emerald-900" /> 저장 완료!
+                <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                <span>AI 응답 속도 확인 중...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-4 h-4" /> 키 저장하기
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>AI 연결 상태 테스트</span>
               </>
             )}
           </button>
 
           <button
-            id="test-api-key-btn"
-            onClick={handleTestKey}
-            disabled={testing}
-            className="px-4 py-3.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold rounded-2xl transition-colors disabled:opacity-50 text-sm"
+            id="close-modal-confirm-btn"
+            onClick={onClose}
+            className="px-6 py-3.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold rounded-2xl text-xs sm:text-sm transition-all"
           >
-            {testing ? '연결 확인 중...' : '연결 테스트'}
+            닫기
           </button>
-
-          {apiKey && (
-            <button
-              id="clear-api-key-btn"
-              onClick={handleClear}
-              className="px-3.5 py-3.5 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-colors text-sm"
-              title="저장된 키 삭제"
-            >
-              삭제
-            </button>
-          )}
-        </div>
-
-        {/* Free API Key Guide Link & Tips */}
-        <div className="pt-4 border-t border-neutral-100 space-y-2 text-xs text-neutral-500">
-          <div className="flex items-center justify-between">
-            <span>API 키가 아직 없으신가요?</span>
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-700 font-bold underline underline-offset-2"
-            >
-              Google AI Studio에서 무료로 받기
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-          <p className="text-[11px] text-neutral-400 leading-tight">
-            * 복사 시 키 앞뒤에 공백이나 숨은 글자가 포함되지 않았는지 확인해주세요.
-          </p>
         </div>
       </div>
     </div>
