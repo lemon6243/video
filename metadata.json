@@ -1,0 +1,6 @@
+{
+  "name": "키즈 튜브 스튜디오 (Kids Tube Studio)",
+  "description": "어린이 크리에이터를 위한 영상 분석, AI 썸네일 추천 및 귀여운 자막·스티커 편집기",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
