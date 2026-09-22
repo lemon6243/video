@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Key, X, Check, ExternalLink, Sparkles, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { getStoredApiKey, saveStoredApiKey, removeStoredApiKey } from '../utils/gemini';
+import { getStoredApiKey, saveStoredApiKey, removeStoredApiKey, SUPPORTED_GEMINI_MODELS } from '../utils/gemini';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -45,26 +45,38 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
 
     try {
       const cleanKey = apiKey.trim();
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(cleanKey)}`;
-      
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': cleanKey,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Respond with OK' }] }],
-        }),
-      });
+      let connected = false;
+      let lastErrMsg = '';
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        const serverMsg = errorData?.error?.message || '';
-        if (serverMsg) {
-          throw new Error(`Google API 응답 (${res.status}): ${serverMsg}`);
+      for (const model of SUPPORTED_GEMINI_MODELS) {
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+          
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': cleanKey,
+            },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'Respond with OK' }] }],
+            }),
+          });
+
+          if (res.ok) {
+            connected = true;
+            break;
+          } else {
+            const errorData = await res.json().catch(() => ({}));
+            lastErrMsg = errorData?.error?.message || `HTTP ${res.status}`;
+          }
+        } catch (e: any) {
+          lastErrMsg = e?.message || '네트워크 오류';
         }
-        throw new Error(`API 키 검증 실패 (코드 ${res.status}). 키와 권한을 확인해주세요.`);
+      }
+
+      if (!connected) {
+        throw new Error(lastErrMsg || 'API 키 검증 실패. 키와 권한을 확인해주세요.');
       }
 
       setTestResult('success');

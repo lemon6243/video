@@ -1,10 +1,20 @@
 import { Keyframe, ThumbnailSuggestion } from '../types';
 
 const API_KEY_STORAGE_KEY = 'kids_tube_gemini_api_key';
+export const SUPPORTED_GEMINI_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.8-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+];
 
 export function getStoredApiKey(): string {
   try {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+    const stored = localStorage.getItem(API_KEY_STORAGE_KEY);
+    if (stored && stored !== 'CLEARED' && stored.trim()) {
+      return stored.trim();
+    }
+    return '';
   } catch {
     return '';
   }
@@ -20,7 +30,7 @@ export function saveStoredApiKey(key: string): void {
 
 export function removeStoredApiKey(): void {
   try {
-    localStorage.removeItem(API_KEY_STORAGE_KEY);
+    localStorage.setItem(API_KEY_STORAGE_KEY, 'CLEARED');
   } catch (err) {
     console.warn('Could not remove API key from localStorage', err);
   }
@@ -123,30 +133,43 @@ async function callGeminiMultimodal(
 
   parts.push({ text: promptText });
 
-  // Use supported Gemini model with JSON response schema
   const cleanKey = apiKey.trim();
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(cleanKey)}`;
+  let response: Response | null = null;
+  let lastErrorMessage = '';
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': cleanKey,
-    },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: 0.9,
-        topP: 0.95,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
+  for (const model of SUPPORTED_GEMINI_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': cleanKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0.8,
+            topP: 0.95,
+            responseMimeType: 'application/json',
+          },
+        }),
+      });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData?.error?.message || `HTTP ${response.status}`;
-    throw new Error(message);
+      if (res.ok) {
+        response = res;
+        break;
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        lastErrorMessage = errorData?.error?.message || `HTTP ${res.status}`;
+      }
+    } catch (err: any) {
+      lastErrorMessage = err?.message || '네트워크 오류';
+    }
+  }
+
+  if (!response) {
+    throw new Error(lastErrorMessage || 'Gemini API 호출에 실패했습니다.');
   }
 
   const data = await response.json();
