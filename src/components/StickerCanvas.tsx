@@ -23,6 +23,10 @@ import {
   Music,
   Eye,
   Check,
+  Film,
+  Video,
+  StopCircle,
+  Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { OverlayItem, VideoItem, AspectRatioMode, VideoFilterOption } from '../types';
@@ -67,6 +71,14 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
   const [isGeneratingAutoSubs, setIsGeneratingAutoSubs] = useState(false);
   const [autoSubFeedback, setAutoSubFeedback] = useState<string | null>(null);
   const [activeSfxId, setActiveSfxId] = useState<string | null>(null);
+
+  // Video Export states
+  const [isExportingVideo, setIsExportingVideo] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportDurationMode, setExportDurationMode] = useState<'15s' | '30s' | 'all'>('30s');
+  const cancelExportRef = useRef(false);
+  const stopAndSaveEarlyRef = useRef(false);
 
   // Dragging state
   const isDraggingRef = useRef(false);
@@ -294,7 +306,113 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
     );
   };
 
-  // Export composite snapshot
+  // Helpers for canvas drawing
+  const drawOverlaysOnContext = (
+    ctx: CanvasRenderingContext2D,
+    items: OverlayItem[],
+    canvasWidth: number,
+    canvasHeight: number,
+    currentVideoTime?: number
+  ) => {
+    items.forEach((item) => {
+      if (
+        currentVideoTime !== undefined &&
+        item.type === 'subtitle' &&
+        item.startTime !== undefined &&
+        item.endTime !== undefined
+      ) {
+        if (currentVideoTime < item.startTime || currentVideoTime > item.endTime) {
+          return;
+        }
+      }
+
+      const posX = (item.x / 100) * canvasWidth;
+      const posY = (item.y / 100) * canvasHeight;
+      const scale = item.scale || 1;
+      const rotationRad = ((item.rotation || 0) * Math.PI) / 180;
+
+      ctx.save();
+      ctx.translate(posX, posY);
+      ctx.rotate(rotationRad);
+      ctx.scale(scale, scale);
+
+      if (item.type === 'sticker') {
+        ctx.font = 'bold 50px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.emoji || '⭐', 0, -10);
+
+        if (item.text) {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '900 24px "Jua", sans-serif';
+          ctx.lineWidth = 6;
+          ctx.strokeStyle = '#000000';
+          ctx.strokeText(item.text, 0, 32);
+          ctx.fillText(item.text, 0, 32);
+        }
+      } else {
+        const text = item.text || '';
+        ctx.font = '900 38px "Jua", "Noto Sans KR", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const metrics = ctx.measureText(text);
+        const paddingX = 28;
+        const paddingY = 16;
+        const boxW = metrics.width + paddingX * 2;
+        const boxH = 50 + paddingY;
+
+        ctx.fillStyle = item.bgColor || 'rgba(0,0,0,0.7)';
+        ctx.beginPath();
+        ctx.roundRect(-boxW / 2, -boxH / 2, boxW, boxH, 16);
+        ctx.fill();
+
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = item.strokeColor || '#000000';
+        ctx.strokeText(text, 0, 0);
+
+        ctx.fillStyle = item.textColor || '#FFF200';
+        ctx.fillText(text, 0, 0);
+      }
+
+      ctx.restore();
+    });
+  };
+
+  const drawVideoFrameToCanvas = (
+    ctx: CanvasRenderingContext2D,
+    video: HTMLVideoElement,
+    canvasWidth: number,
+    canvasHeight: number,
+    isVertical: boolean
+  ) => {
+    const vW = video.videoWidth || canvasWidth;
+    const vH = video.videoHeight || canvasHeight;
+    const targetRatio = canvasWidth / canvasHeight;
+    const srcRatio = vW / vH;
+
+    let sX = 0;
+    let sY = 0;
+    let sW = vW;
+    let sH = vH;
+
+    if (srcRatio > targetRatio) {
+      sW = vH * targetRatio;
+      sX = (vW - sW) / 2;
+    } else {
+      sH = vW / targetRatio;
+      sY = (vH - sH) / 2;
+    }
+
+    try {
+      ctx.drawImage(video, sX, sY, sW, sH, 0, 0, canvasWidth, canvasHeight);
+    } catch {
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    }
+  };
+
+  // Export composite snapshot (Image PNG)
   const handleExportSnapshot = async () => {
     try {
       const isVertical = aspectRatio === '9:16';
@@ -307,20 +425,13 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Apply CSS visual filter if selected
       if (selectedFilter.cssFilter && selectedFilter.cssFilter !== 'none') {
         ctx.filter = selectedFilter.cssFilter;
       }
 
       const video = videoRef.current;
       if (video && video.readyState >= 2) {
-        try {
-          ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
-        } catch {
-          // If CORS tainted, fill with warm color
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-        }
+        drawVideoFrameToCanvas(ctx, video, canvasWidth, canvasHeight, isVertical);
       } else if (initialBackgroundUrl) {
         const bgImg = new Image();
         bgImg.crossOrigin = 'anonymous';
@@ -335,71 +446,13 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
       }
 
-      // Reset filter for stickers and subtitles
       ctx.filter = 'none';
-
-      // Draw all overlays onto canvas
-      overlays.forEach((item) => {
-        const posX = (item.x / 100) * canvasWidth;
-        const posY = (item.y / 100) * canvasHeight;
-        const scale = item.scale || 1;
-        const rotationRad = ((item.rotation || 0) * Math.PI) / 180;
-
-        ctx.save();
-        ctx.translate(posX, posY);
-        ctx.rotate(rotationRad);
-        ctx.scale(scale, scale);
-
-        if (item.type === 'sticker') {
-          // Draw Sticker bubble
-          ctx.font = 'bold 50px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(item.emoji || '⭐', 0, -10);
-
-          if (item.text) {
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '900 24px "Jua", sans-serif';
-            ctx.lineWidth = 6;
-            ctx.strokeStyle = '#000000';
-            ctx.strokeText(item.text, 0, 32);
-            ctx.fillText(item.text, 0, 32);
-          }
-        } else {
-          // Draw Subtitle
-          const text = item.text || '';
-          ctx.font = '900 38px "Jua", "Noto Sans KR", sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
-          // Background box
-          const metrics = ctx.measureText(text);
-          const paddingX = 28;
-          const paddingY = 16;
-          const boxW = metrics.width + paddingX * 2;
-          const boxH = 50 + paddingY;
-
-          ctx.fillStyle = item.bgColor || 'rgba(0,0,0,0.7)';
-          ctx.beginPath();
-          ctx.roundRect(-boxW / 2, -boxH / 2, boxW, boxH, 16);
-          ctx.fill();
-
-          // Stroke and text
-          ctx.lineWidth = 8;
-          ctx.strokeStyle = item.strokeColor || '#000000';
-          ctx.strokeText(text, 0, 0);
-
-          ctx.fillStyle = item.textColor || '#FFF200';
-          ctx.fillText(text, 0, 0);
-        }
-
-        ctx.restore();
-      });
+      drawOverlaysOnContext(ctx, overlays, canvasWidth, canvasHeight, currentTime);
 
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `kids-studio-snapshot-${Date.now()}.png`;
+      a.download = `haon-riho-snapshot-${Date.now()}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -411,6 +464,196 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
       });
     } catch (err) {
       console.error('Snapshot capture failed:', err);
+    }
+  };
+
+  // Export full edited video with baked-in subtitles, stickers, and filters (MediaRecorder MP4/WebM)
+  const handleExportVideo = async (maxSecondsLimit?: number) => {
+    const video = videoRef.current;
+    if (!video || !currentVideo) {
+      alert('저장할 동영상이 없습니다. 먼저 영상을 선택해 주세요!');
+      return;
+    }
+
+    try {
+      setIsExportingVideo(true);
+      setExportProgress(0);
+      setExportError(null);
+      cancelExportRef.current = false;
+      stopAndSaveEarlyRef.current = false;
+
+      const isVertical = aspectRatio === '9:16';
+      const canvasWidth = isVertical ? 720 : 1280;
+      const canvasHeight = isVertical ? 1280 : 720;
+
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvasWidth;
+      exportCanvas.height = canvasHeight;
+      const ctx = exportCanvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Canvas 2D context를 생성할 수 없습니다.');
+      }
+
+      // Check MediaRecorder format
+      let mimeType = 'video/webm;codecs=vp9';
+      let fileExt = 'webm';
+      if (typeof MediaRecorder !== 'undefined') {
+        if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')) {
+          mimeType = 'video/mp4;codecs=avc1';
+          fileExt = 'mp4';
+        } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+          mimeType = 'video/mp4';
+          fileExt = 'mp4';
+        } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+          mimeType = 'video/webm;codecs=vp9,opus';
+          fileExt = 'webm';
+        } else if (MediaRecorder.isTypeSupported('video/webm')) {
+          mimeType = 'video/webm';
+          fileExt = 'webm';
+        }
+      } else {
+        throw new Error('현재 브라우저가 동영상 녹화(MediaRecorder) 기능을 지원하지 않습니다.');
+      }
+
+      // Target duration
+      const fullDuration = video.duration && !isNaN(video.duration) && video.duration > 0 ? video.duration : 15;
+      let limit = 30;
+      if (maxSecondsLimit) {
+        limit = maxSecondsLimit;
+      } else if (exportDurationMode === '15s') {
+        limit = 15;
+      } else if (exportDurationMode === '30s') {
+        limit = 30;
+      } else if (exportDurationMode === 'all') {
+        limit = fullDuration;
+      }
+      const totalRecordDuration = Math.min(fullDuration, limit);
+
+      // Create stream from canvas
+      const stream = exportCanvas.captureStream(30);
+
+      // Try capturing audio from video
+      try {
+        const vStream = (video as any).captureStream
+          ? (video as any).captureStream()
+          : (video as any).mozCaptureStream
+          ? (video as any).mozCaptureStream()
+          : null;
+        if (vStream) {
+          const aTracks = vStream.getAudioTracks();
+          if (aTracks && aTracks.length > 0) {
+            stream.addTrack(aTracks[0]);
+          }
+        }
+      } catch (e) {
+        console.warn('Audio capture note:', e);
+      }
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 3_500_000,
+      });
+
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      const finishAndDownload = () => {
+        if (chunks.length === 0) {
+          setIsExportingVideo(false);
+          return;
+        }
+        const blob = new Blob(chunks, { type: mimeType });
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `haon-riho-edited-${isVertical ? 'shorts' : 'video'}-${Date.now()}.${fileExt}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+        setIsExportingVideo(false);
+        confetti({
+          particleCount: 150,
+          spread: 90,
+          origin: { y: 0.6 },
+        });
+      };
+
+      recorder.onstop = finishAndDownload;
+
+      // Rewind video to start
+      video.pause();
+      video.currentTime = 0;
+
+      await new Promise<void>((resolve) => {
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        video.addEventListener('seeked', onSeeked);
+      });
+
+      recorder.start(200);
+      try {
+        await video.play();
+      } catch {
+        video.muted = true;
+        await video.play();
+      }
+
+      const renderLoop = () => {
+        if (cancelExportRef.current) {
+          video.pause();
+          try {
+            recorder.stop();
+          } catch {}
+          setIsExportingVideo(false);
+          return;
+        }
+
+        const currentSec = video.currentTime;
+        const progress = Math.min(100, Math.round((currentSec / totalRecordDuration) * 100));
+        setExportProgress(progress);
+
+        // Draw frame
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        if (selectedFilter.cssFilter && selectedFilter.cssFilter !== 'none') {
+          ctx.filter = selectedFilter.cssFilter;
+        } else {
+          ctx.filter = 'none';
+        }
+
+        drawVideoFrameToCanvas(ctx, video, canvasWidth, canvasHeight, isVertical);
+
+        ctx.filter = 'none';
+        drawOverlaysOnContext(ctx, overlays, canvasWidth, canvasHeight, currentSec);
+
+        // Check if finished
+        if (
+          stopAndSaveEarlyRef.current ||
+          video.ended ||
+          currentSec >= totalRecordDuration
+        ) {
+          video.pause();
+          try {
+            recorder.stop();
+          } catch {}
+          return;
+        }
+
+        requestAnimationFrame(renderLoop);
+      };
+
+      requestAnimationFrame(renderLoop);
+    } catch (err: any) {
+      console.error('Failed to export video:', err);
+      setExportError(err?.message || '동영상 인코딩 중 오류가 발생했습니다.');
+      setIsExportingVideo(false);
     }
   };
 
@@ -495,13 +738,39 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
             <span>팡파레! 🎉</span>
           </button>
 
+          {/* Main Edited Video Export Section */}
+          <div className="flex items-center gap-1.5 bg-rose-50 border-2 border-rose-200 rounded-2xl p-1">
+            <select
+              value={exportDurationMode}
+              onChange={(e) => setExportDurationMode(e.target.value as any)}
+              className="bg-white border border-rose-200 text-rose-900 text-xs font-bold rounded-xl px-2 py-1.5 focus:outline-hidden cursor-pointer"
+              title="저장할 동영상 길이 선택"
+            >
+              <option value="15s">⚡ 15초 쇼츠</option>
+              <option value="30s">⏱️ 30초 컷</option>
+              <option value="all">🎬 전체 영상</option>
+            </select>
+            <button
+              id="download-video-btn"
+              onClick={() => handleExportVideo()}
+              disabled={isExportingVideo || !currentVideo}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-black rounded-xl text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-rose-200 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+              title="스티커, 자막, 필터가 모두 영구 합성된 동영상 파일로 저장합니다"
+            >
+              <Film className="w-4 h-4" />
+              <span>편집 영상 저장</span>
+            </button>
+          </div>
+
+          {/* Snapshot Photo Button */}
           <button
             id="download-snapshot-btn"
             onClick={handleExportSnapshot}
-            className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-extrabold rounded-2xl text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-indigo-200 active:scale-95 transition-all"
+            className="px-3 py-2.5 bg-neutral-800 hover:bg-neutral-900 text-white font-extrabold rounded-2xl text-xs sm:text-sm flex items-center gap-1.5 shadow-xs active:scale-95 transition-all"
+            title="현재 화면을 썸네일 이미지(PNG)로 저장합니다"
           >
-            <Download className="w-4 h-4" />
-            <span>{aspectRatio === '9:16' ? '쇼츠 사진 저장' : '16:9 사진 저장'}</span>
+            <Download className="w-4 h-4 text-neutral-300" />
+            <span>사진 썸네일</span>
           </button>
 
           {overlays.length > 0 && (
@@ -515,6 +784,71 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
           )}
         </div>
       </div>
+
+      {/* Video Export Progress Modal */}
+      {isExportingVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-neutral-900 border-2 border-amber-400 rounded-3xl p-6 max-w-md w-full shadow-2xl text-white space-y-5 text-center">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
+              <Film className="w-8 h-8 animate-bounce" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-xl font-black text-amber-300">
+                🎬 편집된 동영상 내보내는 중...
+              </h3>
+              <p className="text-sm text-neutral-300">
+                자막, 스티커, 필터 효과를 영상 프레임마다 고화질로 굽고 있습니다.
+              </p>
+            </div>
+
+            {/* Progress bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-mono text-neutral-400">
+                <span>인코딩 진행률</span>
+                <span className="font-bold text-amber-300">{exportProgress}%</span>
+              </div>
+              <div className="w-full bg-neutral-800 rounded-full h-3.5 overflow-hidden border border-neutral-700">
+                <div
+                  className="bg-gradient-to-r from-amber-400 via-rose-500 to-indigo-500 h-full transition-all duration-150 rounded-full"
+                  style={{ width: `${exportProgress}%` }}
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-400 bg-neutral-800/80 p-3 rounded-2xl border border-neutral-700/60 leading-relaxed">
+              💡 {aspectRatio === '9:16' ? '9:16 세로 쇼츠' : '16:9 가로 영상'} 규격으로 인코딩되며, 100% 완료 시 자동으로 파일(.webm 또는 .mp4)이 다운로드됩니다!
+            </p>
+
+            {exportError && (
+              <div className="text-xs text-rose-300 bg-rose-950/60 border border-rose-800/80 p-3 rounded-2xl text-left">
+                ⚠️ {exportError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => {
+                  stopAndSaveEarlyRef.current = true;
+                }}
+                className="px-4 py-2.5 bg-amber-400 hover:bg-amber-500 text-neutral-900 font-extrabold rounded-2xl text-xs sm:text-sm flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>지금까지 부분 즉시 저장</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  cancelExportRef.current = true;
+                }}
+                className="px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white font-bold rounded-2xl text-xs sm:text-sm transition-all cursor-pointer"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Video & Overlay Canvas Container */}
       <div className="relative rounded-3xl overflow-hidden bg-neutral-950 border-4 border-amber-300 shadow-xl">
@@ -746,26 +1080,38 @@ export const StickerCanvas: React.FC<StickerCanvasProps> = ({
                 </button>
               </div>
 
-              {/* Playback speed pills */}
-              <div className="flex items-center gap-1 bg-neutral-800/80 p-1 rounded-xl text-xs font-bold">
-                {[0.75, 1, 1.25, 1.5].map((speed) => (
-                  <button
-                    key={speed}
-                    onClick={() => {
-                      setPlaybackRate(speed);
-                      if (videoRef.current) {
-                        videoRef.current.playbackRate = speed;
-                      }
-                    }}
-                    className={`px-2 py-1 rounded-lg transition-colors ${
-                      playbackRate === speed
-                        ? 'bg-amber-400 text-neutral-900'
-                        : 'text-neutral-400 hover:text-white'
-                    }`}
-                  >
-                    {speed}x
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                {/* Playback speed pills */}
+                <div className="flex items-center gap-1 bg-neutral-800/80 p-1 rounded-xl text-xs font-bold">
+                  {[0.75, 1, 1.25, 1.5].map((speed) => (
+                    <button
+                      key={speed}
+                      onClick={() => {
+                        setPlaybackRate(speed);
+                        if (videoRef.current) {
+                          videoRef.current.playbackRate = speed;
+                        }
+                      }}
+                      className={`px-2 py-1 rounded-lg transition-colors ${
+                        playbackRate === speed
+                          ? 'bg-amber-400 text-neutral-900'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      {speed}x
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handleExportVideo()}
+                  disabled={isExportingVideo}
+                  className="px-3 py-1.5 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer"
+                  title="현재 편집 상태로 동영상 다운로드"
+                >
+                  <Film className="w-3.5 h-3.5" />
+                  <span>영상 저장</span>
+                </button>
               </div>
             </div>
           </div>
