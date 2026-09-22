@@ -81,12 +81,21 @@ export interface VideoFilterOption {
 
 export type AspectRatioMode = '16:9' | '9:16';
 
+export interface YouTubeChapter {
+  time: string;
+  title: string;
+}
+
 export interface YouTubeUploadKit {
   titles: string[];
   description: string;
   tags: string[];
   hashtags: string[];
   targetAudience: string;
+  videoSummary?: string;
+  chapters?: YouTubeChapter[];
+  isAiGenerated?: boolean;
+  analyzedKeyframeCount?: number;
   kidFriendlyChecklist: {
     title: string;
     checked: boolean;

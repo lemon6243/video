@@ -7,10 +7,10 @@ import { StickerCanvas } from './components/StickerCanvas';
 import { YouTubeKitSection } from './components/YouTubeKitSection';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { SAMPLE_KID_VIDEOS } from './data/stickers';
-import { VideoItem, Keyframe, ThumbnailSuggestion, OverlayItem } from './types';
+import { VideoItem, Keyframe, ThumbnailSuggestion, OverlayItem, YouTubeUploadKit } from './types';
 import { extractVideoKeyframes } from './utils/videoExtractor';
 import { generateThumbnailSuggestions, checkAiServerStatus } from './utils/gemini';
-import { generateYouTubeUploadKit } from './utils/youtubeKit';
+import { generateYouTubeUploadKit, generateAiYouTubeUploadKit } from './utils/youtubeKit';
 import { Sparkles, Wand2, Palette, Video, ArrowRight, Youtube } from 'lucide-react';
 
 export default function App() {
@@ -29,6 +29,12 @@ export default function App() {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [suggestionSource, setSuggestionSource] = useState<'gemini' | 'smart-generator'>('smart-generator');
   const [suggestionError, setSuggestionError] = useState<string | undefined>(undefined);
+
+  // YouTube Upload Package (SEO) state
+  const [uploadKit, setUploadKit] = useState<YouTubeUploadKit>(() =>
+    generateYouTubeUploadKit('하온이와 리호의 신나는 하루')
+  );
+  const [isLoadingKit, setIsLoadingKit] = useState(false);
 
   // Sticker Canvas Overlays
   const [overlays, setOverlays] = useState<OverlayItem[]>([
@@ -99,8 +105,9 @@ export default function App() {
       setKeyframes(extracted);
       setIsExtracting(false);
 
-      // Automatically generate AI thumbnail suggestions for the newly extracted keyframes!
+      // Automatically generate AI thumbnail suggestions and YouTube SEO kit for the newly extracted keyframes!
       triggerAiThumbnails(extracted, video.title);
+      triggerAiYouTubeKit(extracted, video.title);
     } catch (err) {
       console.error('Extraction error:', err);
       setIsExtracting(false);
@@ -125,6 +132,21 @@ export default function App() {
       setSuggestionError(err?.message || '썸네일 생성 중 오류가 발생했습니다.');
     } finally {
       setIsLoadingSuggestions(false);
+    }
+  };
+
+  // Trigger AI YouTube SEO Kit generation from actual video keyframes
+  const triggerAiYouTubeKit = async (targetKeyframes: Keyframe[], title?: string) => {
+    setIsLoadingKit(true);
+    const vTitle = title || currentVideo?.title || '하온이와 리호의 신나는 하루';
+
+    try {
+      const kit = await generateAiYouTubeUploadKit(targetKeyframes, vTitle);
+      setUploadKit(kit);
+    } catch (err) {
+      console.error('Failed to generate AI YouTube kit:', err);
+    } finally {
+      setIsLoadingKit(false);
     }
   };
 
@@ -330,8 +352,11 @@ export default function App() {
         {activeTab === 'youtube' && (
           <div className="animate-in fade-in duration-300">
             <YouTubeKitSection
-              kit={generateYouTubeUploadKit(currentVideo?.title || '하온이와 리호의 신나는 하루')}
+              kit={uploadKit}
               videoTitle={currentVideo?.title || '하온이와 리호의 신나는 하루'}
+              keyframes={keyframes}
+              isLoading={isLoadingKit}
+              onRefreshKit={() => triggerAiYouTubeKit(keyframes, currentVideo?.title)}
             />
           </div>
         )}

@@ -12,7 +12,7 @@ export const SUPPORTED_GEMINI_MODELS = [
  * Uses Base64 segment decoding at runtime to prevent GitHub Push Protection
  * (secret scanning rules) from blocking git commits/pushes.
  */
-function getStudioFallbackKey(): string {
+export function getStudioFallbackKey(): string {
   if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) {
     return (import.meta as any).env.VITE_GEMINI_API_KEY;
   }
