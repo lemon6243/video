@@ -44,20 +44,31 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
     setErrorMessage('');
 
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}`;
+      const cleanKey = apiKey.trim();
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(cleanKey)}`;
+      
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': cleanKey,
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Hello, respond with: OK' }] }],
+          contents: [{ parts: [{ text: 'Respond with OK' }] }],
         }),
       });
 
       if (!res.ok) {
-        throw new Error('API 키가 올바르지 않거나 권한이 없습니다.');
+        const errorData = await res.json().catch(() => ({}));
+        const serverMsg = errorData?.error?.message || '';
+        if (serverMsg) {
+          throw new Error(`Google API 응답 (${res.status}): ${serverMsg}`);
+        }
+        throw new Error(`API 키 검증 실패 (코드 ${res.status}). 키와 권한을 확인해주세요.`);
       }
+
       setTestResult('success');
-      saveStoredApiKey(apiKey.trim());
+      saveStoredApiKey(cleanKey);
       onKeyUpdated();
     } catch (err: any) {
       setTestResult('error');
@@ -106,23 +117,33 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
         {/* Safe notice for parents & kids */}
         <div className="mb-5 p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 flex items-start gap-2.5 text-xs sm:text-sm text-amber-900">
           <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <p className="leading-relaxed">
-            입력한 API 키는 내 컴퓨터의 웹 브라우저(localStorage)에만 안전하게 저장되며 외부 서버로 전송되지 않습니다.
-          </p>
+          <div className="leading-relaxed">
+            <p>
+              입력한 API 키는 내 컴퓨터의 웹 브라우저(localStorage)에만 안전하게 저장되며 외부 서버로 전송되지 않습니다.
+            </p>
+            <p className="mt-1 text-xs text-amber-800 font-semibold">
+              💡 최신 Google AI Studio 키(<code className="bg-amber-100 px-1 py-0.5 rounded text-amber-900 font-mono">AQ...</code> 또는 <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-900 font-mono">AIzaSy...</code>) 모두 그대로 사용할 수 있습니다.
+            </p>
+          </div>
         </div>
 
         {/* Input Field */}
         <div className="space-y-3 mb-6">
-          <label className="block text-sm font-bold text-neutral-700">
-            Google AI Studio API 키 입력
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-bold text-neutral-700">
+              Google AI Studio API 키 입력
+            </label>
+            <span className="text-[11px] font-medium text-neutral-500">
+              AQ... 또는 AIzaSy... 시작
+            </span>
+          </div>
           <div className="relative">
             <input
               id="gemini-api-key-input"
               type={showKey ? 'text' : 'password'}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="AIzaSy... 형식의 키를 붙여넣으세요"
+              placeholder="AQ... 또는 AIzaSy... 형식의 키를 붙여넣으세요"
               className="w-full px-4 py-3.5 pr-12 rounded-2xl border-2 border-neutral-200 focus:border-amber-400 focus:ring-4 focus:ring-amber-100 outline-none text-sm font-mono transition-all"
             />
             <button
@@ -187,18 +208,23 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onKey
           )}
         </div>
 
-        {/* Free API Key Guide Link */}
-        <div className="pt-4 border-t border-neutral-100 flex items-center justify-between text-xs text-neutral-500">
-          <span>API 키가 아직 없으신가요?</span>
-          <a
-            href="https://aistudio.google.com/app/apikey"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-700 font-bold underline underline-offset-2"
-          >
-            Google AI Studio에서 무료로 받기
-            <ExternalLink className="w-3 h-3" />
-          </a>
+        {/* Free API Key Guide Link & Tips */}
+        <div className="pt-4 border-t border-neutral-100 space-y-2 text-xs text-neutral-500">
+          <div className="flex items-center justify-between">
+            <span>API 키가 아직 없으신가요?</span>
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-700 font-bold underline underline-offset-2"
+            >
+              Google AI Studio에서 무료로 받기
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+          <p className="text-[11px] text-neutral-400 leading-tight">
+            * 복사 시 키 앞뒤에 공백이나 숨은 글자가 포함되지 않았는지 확인해주세요.
+          </p>
         </div>
       </div>
     </div>

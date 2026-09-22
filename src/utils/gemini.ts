@@ -106,12 +106,14 @@ async function callGeminiMultimodal(
   parts.push({ text: promptText });
 
   // Use supported Gemini model (gemini-2.5-flash or gemini-3.8-flash for vision)
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const cleanKey = apiKey.trim();
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(cleanKey)}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-goog-api-key': cleanKey,
     },
     body: JSON.stringify({
       contents: [{ parts }],
